@@ -146,6 +146,18 @@ requirejs.config({
         "activity/notation": {
             exports: "Notation"
         },
+        "utils/musicutils-constants": {
+            deps: ["utils/utils"],
+            exports: "MusicUtilsConstants"
+        },
+        "utils/musicutils-temperament": {
+            deps: ["utils/utils", "utils/musicutils-constants"],
+            exports: "MusicUtilsTemperament"
+        },
+        "utils/musicutils": {
+            deps: ["utils/musicutils-constants", "utils/musicutils-temperament"],
+            exports: "MusicUtils"
+        },
         "utils/synthutils": {
             deps: ["utils/utils", "activity/activity-context"],
             exports: "Synth"

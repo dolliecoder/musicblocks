@@ -154,6 +154,8 @@ let MYDEFINES = [
     "search-ui",
     "activity/keyboard-controller",
     "widgets/plugin-dialog",
+    "utils/musicutils-constants",
+    "utils/musicutils-temperament",
     "utils/musicutils",
     "utils/synthutils",
     "utils/mathutils",
