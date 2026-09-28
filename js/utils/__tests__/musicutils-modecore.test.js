@@ -73,6 +73,204 @@ describe("musicutils-modecore", () => {
         expect(modecore.wholeNoteImg).toMatch(/^data:image\/svg\+xml;base64,/);
     });
 
+    it("replaces the last chord slot with a custom chord", () => {
+        modecore.setCustomChord([[1, 2]]);
+        expect(modecore.CHORDVALUES[modecore.CHORDVALUES.length - 1]).toEqual([[1, 2]]);
+        // Restore, since CHORDVALUES is shared module state other tests also read.
+        modecore.setCustomChord([
+            [0, 0],
+            [2, 0],
+            [4, 0],
+            [7, 0]
+        ]);
+    });
+
+    describe("getCustomNote", () => {
+        it("spells out each articulation symbol as its musical-notation character", () => {
+            expect(modecore.getCustomNote("Abb")).toBe("A𝄫");
+            expect(modecore.getCustomNote("Cx")).toBe("C𝄪");
+            expect(modecore.getCustomNote("D##")).toBe("D𝄪");
+            expect(modecore.getCustomNote("E*")).toBe("E𝄪");
+        });
+    });
+
+    describe("getModePattern", () => {
+        it("returns a flat step-1 pattern for the custom mode outside 12-EDO", () => {
+            expect(modecore.getModePattern("custom", 19)).toHaveLength(19);
+            expect(modecore.getModePattern("custom", 19).every(step => step === 1)).toBe(true);
+        });
+
+        it("falls back to the major pattern for a mode it does not recognize", () => {
+            expect(modecore.getModePattern("not-a-mode")).toEqual([2, 2, 1, 2, 2, 2, 1]);
+        });
+
+        it("prefers a per-EDO override over the scaled 12-EDO pattern", () => {
+            modecore.PITCH_COLLECTIONS_EDO_OVERRIDES[19] = { major: [3, 3, 2, 3, 3, 3, 2] };
+            expect(modecore.getModePattern("major", 19)).toEqual([3, 3, 2, 3, 3, 3, 2]);
+            delete modecore.PITCH_COLLECTIONS_EDO_OVERRIDES[19];
+        });
+    });
+
+    describe("GetNotesForInterval", () => {
+        const singer = overrides => ({
+            singer: {
+                noteStatus: null,
+                notePitches: {},
+                intervals: [],
+                noteOctaves: {},
+                inNoteBlock: [],
+                ...overrides
+            }
+        });
+
+        it("reads the first and second note from noteStatus, octave from their digits", () => {
+            expect(modecore.GetNotesForInterval(singer({ noteStatus: [["C4", "E5"]] }))).toEqual({
+                firstNote: "C",
+                secondNote: "E",
+                octave: 1
+            });
+        });
+
+        it("repeats the first note when noteStatus has only one entry", () => {
+            expect(modecore.GetNotesForInterval(singer({ noteStatus: [["C4"]] }))).toEqual({
+                firstNote: "C",
+                secondNote: "C",
+                octave: 0
+            });
+        });
+
+        it("reads from notePitches when there is no noteStatus", () => {
+            expect(
+                modecore.GetNotesForInterval(
+                    singer({ notePitches: { 0: ["D4", "F4", "A4"] }, inNoteBlock: [0] })
+                )
+            ).toEqual({ firstNote: "D4", secondNote: "A4", octave: 0 });
+        });
+
+        it("defaults to C-to-C when neither noteStatus nor notePitches has data", () => {
+            expect(modecore.GetNotesForInterval(singer())).toEqual({
+                firstNote: "C",
+                secondNote: "C",
+                octave: 0
+            });
+        });
+
+        it("takes the octave from intervals when intervals are present", () => {
+            expect(
+                modecore.GetNotesForInterval(singer({ noteStatus: [["C4", "E5"]], intervals: [3] }))
+            ).toEqual({ firstNote: "C", secondNote: "E", octave: 0 });
+        });
+
+        it("takes the octave from noteOctaves when intervals are absent", () => {
+            expect(
+                modecore.GetNotesForInterval(
+                    singer({
+                        notePitches: { 0: ["D4"] },
+                        noteOctaves: { 0: [4, 6] },
+                        inNoteBlock: [0]
+                    })
+                )
+            ).toEqual({ firstNote: "D4", secondNote: "D4", octave: 2 });
+        });
+    });
+
+    describe("modeMapper over every branch of its dorian/phrygian/lydian/mixolydian/locrian key table", () => {
+        // One case per `case` label the switch inside modeMapper has for each of these five
+        // modes (all 12 chromatic keys, spelled sharp and flat where the switch has both), so
+        // this sweep exercises the whole 260-line table, not just a hand-picked few keys.
+        const cases = [
+            ["C", "dorian", ["a♯", "major"]],
+            ["D", "dorian", ["c", "major"]],
+            ["E", "dorian", ["d", "major"]],
+            ["F", "dorian", ["c", "minor"]],
+            ["G", "dorian", ["f", "major"]],
+            ["A", "dorian", ["g", "major"]],
+            ["B", "dorian", ["a", "major"]],
+            ["C♯", "dorian", ["b", "major"]],
+            ["D♯", "dorian", ["c♯", "major"]],
+            ["F♯", "dorian", ["e", "major"]],
+            ["G♯", "dorian", ["f♯", "major"]],
+            ["A♯", "dorian", ["g♯", "major"]],
+            ["D♭", "dorian", ["e♭", "minor"]],
+            ["E♭", "dorian", ["e♭", "minor"]],
+            ["G♭", "dorian", ["d", "minor"]],
+            ["A♭", "dorian", ["e♭", "minor"]],
+            ["B♭", "dorian", ["f", "minor"]],
+            ["C", "phrygian", ["g♯", "major"]],
+            ["D", "phrygian", ["a♯", "major"]],
+            ["E", "phrygian", ["c", "major"]],
+            ["F", "phrygian", ["d♭", "major"]],
+            ["G", "phrygian", ["c", "minor"]],
+            ["A", "phrygian", ["f", "major"]],
+            ["B", "phrygian", ["g", "major"]],
+            ["C♯", "phrygian", ["a", "major"]],
+            ["D♯", "phrygian", ["b", "major"]],
+            ["F♯", "phrygian", ["d", "major"]],
+            ["G♯", "phrygian", ["e", "major"]],
+            ["A♯", "phrygian", ["b", "major"]],
+            ["D♭", "phrygian", ["g♭", "minor"]],
+            ["E♭", "phrygian", ["e♭", "minor"]],
+            ["G♭", "phrygian", ["d", "major"]],
+            ["A♭", "phrygian", ["d♭", "minor"]],
+            ["B♭", "phrygian", ["e♭", "minor"]],
+            ["C", "lydian", ["g", "major"]],
+            ["D", "lydian", ["a", "major"]],
+            ["E", "lydian", ["b", "major"]],
+            ["F", "lydian", ["c", "major"]],
+            ["G", "lydian", ["d", "major"]],
+            ["A", "lydian", ["e", "major"]],
+            ["B", "lydian", ["b", "major"]],
+            ["C♯", "lydian", ["g♯", "major"]],
+            ["D♯", "lydian", ["a♯", "major"]],
+            ["F♯", "lydian", ["b", "major"]],
+            ["G♯", "lydian", ["c", "minor"]],
+            ["A♯", "lydian", ["f", "major"]],
+            ["D♭", "lydian", ["f", "minor"]],
+            ["E♭", "lydian", ["g", "minor"]],
+            ["G♭", "lydian", ["d♭", "minor"]],
+            ["A♭", "lydian", ["c", "minor"]],
+            ["B♭", "lydian", ["d", "minor"]],
+            ["C", "mixolydian", ["f", "major"]],
+            ["D", "mixolydian", ["g", "major"]],
+            ["E", "mixolydian", ["a", "major"]],
+            ["F", "mixolydian", ["a♯", "major"]],
+            ["G", "mixolydian", ["c", "major"]],
+            ["A", "mixolydian", ["d", "major"]],
+            ["B", "mixolydian", ["e", "major"]],
+            ["C♯", "mixolydian", ["f♯", "major"]],
+            ["D♯", "mixolydian", ["g♯", "major"]],
+            ["F♯", "mixolydian", ["b", "major"]],
+            ["G♯", "mixolydian", ["c♯", "major"]],
+            ["A♯", "mixolydian", ["c", "minor"]],
+            ["D♭", "mixolydian", ["e♭", "minor"]],
+            ["E♭", "mixolydian", ["f", "minor"]],
+            ["G♭", "mixolydian", ["e♭", "minor"]],
+            ["A♭", "mixolydian", ["e♭", "minor"]],
+            ["B♭", "mixolydian", ["c", "minor"]],
+            ["C", "locrian", ["b", "major"]],
+            ["D", "locrian", ["c", "minor"]],
+            ["E", "locrian", ["f", "major"]],
+            ["F", "locrian", ["g♭", "major"]],
+            ["G", "locrian", ["g♯", "major"]],
+            ["A", "locrian", ["a♯", "major"]],
+            ["B", "locrian", ["c", "major"]],
+            ["C♯", "locrian", ["d", "major"]],
+            ["D♯", "locrian", ["e", "major"]],
+            ["F♯", "locrian", ["g", "major"]],
+            ["G♯", "locrian", ["a", "major"]],
+            ["A♯", "locrian", ["b", "major"]],
+            ["D♭", "locrian", ["d", "major"]],
+            ["E♭", "locrian", ["d♭", "minor"]],
+            ["G♭", "locrian", ["f", "minor"]],
+            ["A♭", "locrian", ["g♭", "minor"]],
+            ["B♭", "locrian", ["d♭", "minor"]]
+        ];
+
+        it.each(cases)("maps %s %s to %j", (key, mode, expected) => {
+            expect(modecore.modeMapper(key, mode)).toEqual(expected);
+        });
+    });
+
     it("is still reachable through musicutils.js for callers that require it", () => {
         for (const name of [
             "MUSICALMODES",
